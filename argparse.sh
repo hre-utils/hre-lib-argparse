@@ -3,69 +3,78 @@
 # changelog
 #  2021-04-10 :: Created
 #  2021-04-14 :: Proof of concept test with static data completed
-#
-#════════════════════════════════╡ DESCRIPTION ╞════════════════════════════════
-#───────────────────────────────────────────────────────────────────────────────
+#  2021-04-16 :: Improved sourcing dependencies, using new .buf methods to
+#                streamline one-off line printing
 
-# Colors:
-rst=$(tput sgr0)                          # Reset
-bk="\033[30m"                             # Black
-rd="\033[31m"     ; brd="\033[31;1m"      # Red    / Bright Red
-gr="\033[32m"     ; bgr="\033[32;1m"      # Green  / Bright Green
-yl="\033[33m"     ; byl="\033[33;1m"      # Yellow / Bright Yellow
-bl="\033[34m"     ; bbl="\033[34;1m"      # Blue   / Bright Blue
-cy="\033[36m"     ; bcy="\033[36;1m"      # Cyan   / Bright Cyan
-wh="\033[37m"     ; bwh="\033[37;1m"      # White  / Bright White
+#──────────────────────────────────( prereqs )──────────────────────────────────
+# Version requirement: >4
+_bash_version="$( sed -E 's,^([0-9]+)\..*,\1,' <<< "${BASH_VERSION}" )"
+[[ $_bash_version -lt 4 ]] && {
+   echo -e "\n[${BASH_SOURCE[0]}] ERROR: Requires Bash version >= 4\n"
+   exit 1
+}
+
+# Verification if we've sourced this in other scripts. Name is standardized.
+# e.g., filename 'mk-conf.sh' --> '__source_mk_conf=true'
+__fname__="$( basename "${BASH_SOURCE[0]%.*}" )"
+declare $(
+      sed -E -e 's,(.*),__source_\1__,' -e 's,-,_,g' <<< "${__fname__}"
+)=true
 
 # Ensure we're not left with a whacky terminal color:
-trap 'printf $rst' EXIT
-trap 'printf $rst ; exit 0' INT
+trap 'printf $(tput sgr0)' EXIT
+trap 'printf $(tput sgr0) ; exit 0' INT
 
 
-#───────────────────────────────────( paths )───────────────────────────────────
-# Sets up all required paths.
-
-# If file is linked from this repo to another dir (~/bin, /usr/local/bin/, etc),
-# it will still properly source files relative to the $PROGDIR:
-if [[ -L "${BASH_SOURCE[0]}" ]] ; then
-   PROGDIR=$( cd $(dirname $(readlink -f  "${BASH_SOURCE[0]}")) ; pwd )
-else
-   PROGDIR=$( cd $(dirname "${BASH_SOURCE[0]}") ; pwd )
-fi
-
+#══════════════════════════════════╡ GLOBALS ╞══════════════════════════════════
+PROGDIR=$( cd $(dirname "${BASH_SOURCE[0]}") ; pwd )
 LIBDIR="${PROGDIR}/lib"
 CONFIGDIR="${PROGDIR}/config"
 
 
-#────────────────────────────( source dependencies )────────────────────────────
-# Don't actually think we need to source all the dependencies, as each one
-# sequentially sources the next in the list.
+#═══════════════════════════╡ SOURCING DEPENDENCIES ╞═══════════════════════════
+# from colors  import <color escapes>
+# from indent  import .buf
+# from mk-conf import .load-conf
 
-declare -a __dep_not_met__
-declare -a __dependencies__=(
-   mk-conf.sh
-   indent.sh
-)
+__dependencies__=( colors.sh  mk-conf.sh  indent.sh )
+__dep_not_met__=()
 
 for __dep__ in "${__dependencies__[@]}" ; do
-   if [[ -d "$LIBDIR" ]] && [[ -e "${LIBDIR}/${__dep__}" ]] ; then
-      source "${LIBDIR}/${__dep__}" 
+   #───────────────────────────( already sourced )──────────────────────────────
+   # If we've already sourced this dependency, its respective __sourced_XX var
+   # will be set. Don't re-source. Continue.
+   __dep_sourcename__="$(
+         sed -E -e 's,-,_,g' -e 's,(.*)\.sh,__source_\1__,' <<< "$__dep__"
+   )" 
+   [[ -n "${!__dep_sourcename__}" ]] && continue
+
+   #─────────────────────────────( try source )─────────────────────────────────
+   if [[ -e "${LIBDIR}/${__dep__}" ]] ; then
+      source "${LIBDIR}/${__dep__}"
+   elif [[ $(which ${__dep__} 2>/dev/null) ]] ; then
+      # Else try to source if the file is found in our $PATH
+      source "$(which ${__dep__})"
    else
-      __dep_not_met__+=( ${__dep__} )
+      # Else failed to source. Append to list for tracking.
+      __dep_not_met__+=( "$__dep__" )
    fi
 done
 
 if [[ ${#__dep_not_met__} -gt 0 ]] ; then
-   # Using bash parameter regex, raerpb calls to `sed`, to squeek out more
-   # speed. Subprocesses add up.
-   __deps_wout_suffix__="${__dep_not_met__[*]%.*}" 
-   __deps_joined__=${__deps_wout_suffix__[*]// /,}
+   # If colors have been sourced, pretty-print output
+   if [[ -n $__source_colors__ ]] ; then
+      echo -n "[${bl}${__fname__}${rst}] ${brd}ERROR${rst}: "
+   # ELse just regular plain-print it. :(
+   else
+      echo -n "[$__fname__] ERROR: "
+   fi
 
-   echo "Dependencies not found in ./$( basename ${PROGDIR})/lib/ or \$PATH:"
-   echo "   @hre-utils/{${__deps_joined__}}"
+   echo "Failed to source: [${__dep_not_met__[@]}]"
+   echo " + clone from @hre-utils"
+
    exit 1
 fi
-
 
 #───────────────────────────────( load args.cfg )───────────────────────────────
 # Loads config and dynamically creates functions for each heading, top-level
@@ -96,8 +105,8 @@ for opt in "${opts[@]}" ; do
 
       if $(args $opt param) ; then
       #──────────────────────────( req & param )────────────────────────────────
-         _meta=$(args \$opt meta)
-         _meta=${_meta:-\${opt^^}}
+         _meta=$(args $opt meta)
+         _meta=${_meta:-${opt^^}}
          __rp__+="$(args $opt short) ${_meta}" 
       else
       #─────────────────────────( req & noparam )───────────────────────────────
@@ -110,8 +119,8 @@ for opt in "${opts[@]}" ; do
 
       if $(args $opt param) ; then
       #─────────────────────────( noreq & param )───────────────────────────────
-         _meta=$(args \$opt meta)
-         _meta=${_meta:-\${opt^^}}
+         _meta=$(args $opt meta)
+         _meta=${_meta:-${opt^^}}
          __nrp__+="[$(args $opt short) ${_meta}] "
       else
       #────────────────────────( noreq & noparam )──────────────────────────────
@@ -186,9 +195,11 @@ it is. Beep boop. Here's some more text.\\n\"
 # Creates the standard while/case/shift CLI arg parsing, but from a dynamic set
 # of options not known until runtime.
 
-#. <(
+. <(
    #────────────────────────────────( begin )───────────────────────────────────
    .buf new
+   .buf config --strip-newlines
+
    echo 'while [[ $# -gt 0 ]] ; do'
    echo '   case $1 in'
 
@@ -196,11 +207,11 @@ it is. Beep boop. Here's some more text.\\n\"
    # Dynamically generates an "-a|--alpha)" entry for each heading under [args],
    # building the correct case body depending on the attrs. E.g., 'param' will
    # require there's a non-option argument.
-   .buf add "
+   .buf oneoff 6 "
       -h|--help)
             usage 0
             ;;
-   " ; .buf indent 6 ; .buf reset
+   "
 
 
    for opt in "${opts[@]}" ; do
@@ -268,8 +279,7 @@ it is. Beep boop. Here's some more text.\\n\"
    echo -e "   esac"
    echo -e "done\n"
    echo "__positional__+=( \$@ )"
-#)
-
+)
 
 
 #────────────────────────────────( validation )─────────────────────────────────
