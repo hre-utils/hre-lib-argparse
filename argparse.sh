@@ -1,11 +1,24 @@
 #!/bin/bash
-#
-# changelog
+#─────────────────────────────────( changelog )─────────────────────────────────
 #  2021-04-10 :: Created
 #  2021-04-14 :: Proof of concept test with static data completed
 #  2021-04-16 :: Improved sourcing dependencies, using new .buf methods to
 #                streamline one-off line printing
-
+#
+#───────────────────────────────────( todo )────────────────────────────────────
+# This takes time to run. Can speed up the runtime considerably if we're not
+# *dynamically* generating the case/help every time. Should read from a config
+# file, and print the output to stdout, or take an --output param. Then your
+# main.sh script sources the pre-generated output file, rather than dynamically
+# building it every time. Saves a good amount of time on `sed` / `grep` calls.
+#
+# Create a second dependencies section, controlable from CLI switches. E.g.,
+# we can disable color by passing in "-o nocolors," which propagates down to
+# any sourced dependency: `source ${__dep__} ${passdown_opts[@]}`. Need to
+# ensure that even if *this* script doesn't handle a particular passdown opt,
+# we still pass it through. Could be handled by a dependency lower than ours.
+#
+#═══════════════════════════════════╡ BEGIN ╞═══════════════════════════════════
 #──────────────────────────────────( prereqs )──────────────────────────────────
 # Version requirement: >4
 _bash_version="$( sed -E 's,^([0-9]+)\..*,\1,' <<< "${BASH_VERSION}" )"
@@ -135,12 +148,20 @@ __nrnp__="${__nrnp__:+[-${__nrnp__}]} "
 
 
 #════════════════════════════════╡ BUILD USAGE ╞════════════════════════════════
+
+# TODO: should check if '__source_colors__' is set. If so, build a more
+#       aesthetically pleasing USAGE output. Can even take in parameters in the
+#       config file, or CLI switches, to enable/disable color output. Will also
+#       let us do pre-processing and emit warnings without messing up the user's
+#       utility output at runtime. It's a transpiler. cfg -> bash, from
+#       imperative statements to declarative.
+
 . <(
    #────────────────────────────────( begin )───────────────────────────────────
    echo "
    function usage {
    #─────────────────────────────( title opts )─────────────────────────────────
-   echo -e \"\\nUSAGE: ./${BASH_SOURCE[@]} ${__nrnp__}${__nrp__}${__rp__}\"
+   echo -e \"\\nUSAGE: ./$(basename ${BASH_SOURCE[@]}) ${__nrnp__}${__nrp__}${__rp__}\"
 
    #─────────────────────────────( description )────────────────────────────────
    # Description is easy, make heading \"description:multiline\", then pull
@@ -213,7 +234,6 @@ it is. Beep boop. Here's some more text.\\n\"
             ;;
    "
 
-
    for opt in "${opts[@]}" ; do
       sopt=$(args $opt short)
       lopt=$(args $opt long)
@@ -283,8 +303,6 @@ it is. Beep boop. Here's some more text.\\n\"
 
 
 #────────────────────────────────( validation )─────────────────────────────────
-
-
 declare -a __validation_errors__ 
 
 [[ ${#__missing_param__[@]} -gt 0 ]] && {
@@ -299,6 +317,7 @@ declare -a __validation_errors__
    )
 }
 
+# TODO:
 # Not a great way to check required opts, as we can double up in a case like:
 #  -b == required, with parameter
 # User passes in `-b` with no param. This will count as both a missing required
