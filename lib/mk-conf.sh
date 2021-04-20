@@ -1,1 +1,0 @@
-../../mk-conf/mk-conf.sh
