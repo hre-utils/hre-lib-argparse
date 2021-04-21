@@ -21,8 +21,7 @@
 #═══════════════════════════════════╡ BEGIN ╞═══════════════════════════════════
 #──────────────────────────────────( prereqs )──────────────────────────────────
 # Version requirement: >4
-_bash_version="$( sed -E 's,^([0-9]+)\..*,\1,' <<< "${BASH_VERSION}" )"
-[[ $_bash_version -lt 4 ]] && {
+[[ ${BASH_VERSION%%.*} -lt 4 ]] && {
    echo -e "\n[${BASH_SOURCE[0]}] ERROR: Requires Bash version >= 4\n"
    exit 1
 }
@@ -30,9 +29,8 @@ _bash_version="$( sed -E 's,^([0-9]+)\..*,\1,' <<< "${BASH_VERSION}" )"
 # Verification if we've sourced this in other scripts. Name is standardized.
 # e.g., filename 'mk-conf.sh' --> '__source_mk_conf=true'
 __fname__="$( basename "${BASH_SOURCE[0]%.*}" )"
-declare $(
-      sed -E -e 's,(.*),__source_\1__,' -e 's,-,_,g' <<< "${__fname__}"
-)=true
+declare "__source_${__fname__//[^[:alnum:]]/_}__"=true
+
 
 # Ensure we're not left with a whacky terminal color:
 trap 'printf $(tput sgr0)' EXIT
@@ -57,9 +55,8 @@ for __dep__ in "${__dependencies__[@]}" ; do
    #───────────────────────────( already sourced )──────────────────────────────
    # If we've already sourced this dependency, its respective __sourced_XX var
    # will be set. Don't re-source. Continue.
-   __dep_sourcename__="$(
-         sed -E -e 's,-,_,g' -e 's,(.*)\.sh,__source_\1__,' <<< "$__dep__"
-   )" 
+   __dep="${__dep__%.*}"
+   __dep_sourcename__="__source_${__dep//[^[:alnum:]]/_}__"
    [[ -n "${!__dep_sourcename__}" ]] && continue
 
    #─────────────────────────────( try source )─────────────────────────────────
