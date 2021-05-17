@@ -97,7 +97,7 @@ fi
 # to leave here.
 
 declare -a __required_opts__ __nonreq__opts__
-declare -a opts=( $(args __children__) )
+declare -a opts=( $(args --children) )
 
 __rp__=''      # required + param
 __nrp__=''     # not required + param
