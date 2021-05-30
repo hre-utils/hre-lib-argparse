@@ -48,7 +48,7 @@ CONFIGDIR="${PROGDIR}/config"
 # from indent  import .buf
 # from mk-conf import .load-conf
 
-__dependencies__=( colors.sh  mk-conf.sh  indent.sh )
+__dependencies__=( hre-lib-colors.sh  hre-lib-mkconf.sh  hre-lib-indent.sh )
 __dep_not_met__=()
 
 for __dep__ in "${__dependencies__[@]}" ; do

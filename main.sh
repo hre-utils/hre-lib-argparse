@@ -2,7 +2,7 @@
 # main.sh, to test sourcing argparse for argument handling.
 
 PROGDIR="$( cd $(dirname "${BASH_SOURCE[0]}") ; pwd )"
-source "${PROGDIR}/argparse.sh"
+source "${PROGDIR}/hre-lib-argparse.sh"
 
 echo # for spacing
 
